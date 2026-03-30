@@ -32,7 +32,7 @@ frame.Parent = screenGui
 local textLabel = Instance.new("TextLabel")
 textLabel.Size = UDim2.new(1, 0, 0, 40)
 textLabel.BackgroundTransparency = 1
-textLabel.Text = "[ XENO ACTIVADO: Hold 'C' ]"
+textLabel.Text = "[ XENO ACTIVADO: Hold 'P' ]"
 textLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
 textLabel.Font = Enum.Font.Code
 textLabel.TextSize = 13
@@ -49,22 +49,22 @@ hideLabel.TextSize = 14
 hideLabel.Parent = frame
 
 -- ==========================================
--- CONTROLES (TECLA C)
+-- CONTROLES (TECLA P)
 -- ==========================================
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if input.KeyCode == Enum.KeyCode.Insert then
         screenGui.Enabled = not screenGui.Enabled
     end
 
-    -- Activar al presionar 'C' (ignorando si estás escribiendo en el chat)
-    if not gameProcessed and input.KeyCode == Enum.KeyCode.C then
+    -- Activar al presionar 'P' (ignorando si estás escribiendo en el chat)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.P then
         holdingTriggerButton = true
         frame.BorderColor3 = Color3.fromRGB(0, 255, 0)
     end
 end)
 
 UserInputService.InputEnded:Connect(function(input, gameProcessed)
-    if input.KeyCode == Enum.KeyCode.C then
+    if input.KeyCode == Enum.KeyCode.P then
         holdingTriggerButton = false
         frame.BorderColor3 = Color3.fromRGB(255, 0, 0)
     end
