@@ -1,0 +1,134 @@
+if getgenv().XenoTriggerBot then return end
+getgenv().XenoTriggerBot = true
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local Camera = workspace.CurrentCamera
+
+local holdingMouseButton5 = false
+local firingCombo = false
+
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Radius = 100
+FOVCircle.Color = Color3.fromRGB(255, 0, 0)
+FOVCircle.Thickness = 1.5
+FOVCircle.Filled = false
+FOVCircle.Visible = true
+
+local hiddenUI = (gethui and gethui()) or CoreGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "XenoGUI"
+screenGui.Parent = hiddenUI
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 220, 0, 70)
+frame.Position = UDim2.new(0.02, 0, 0.05, 0)
+frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+frame.BorderSizePixel = 2
+frame.BorderColor3 = Color3.fromRGB(0, 255, 0)
+frame.Parent = screenGui
+
+local textLabel = Instance.new("TextLabel")
+textLabel.Size = UDim2.new(1, 0, 0, 40)
+textLabel.BackgroundTransparency = 1
+textLabel.Text = "[ XENO ACTIVADO: Hold XButton2 ]"
+textLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+textLabel.Font = Enum.Font.Code
+textLabel.TextSize = 14
+textLabel.Parent = frame
+
+local hideLabel = Instance.new("TextLabel")
+hideLabel.Size = UDim2.new(1, 0, 0, 20)
+hideLabel.Position = UDim2.new(0, 0, 0, 40)
+hideLabel.BackgroundTransparency = 1
+hideLabel.Text = "[INSERT] para Ocultar/Mostrar Menú"
+hideLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+hideLabel.Font = Enum.Font.SourceSans
+hideLabel.TextSize = 14
+hideLabel.Parent = frame
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if input.KeyCode == Enum.KeyCode.Insert then
+        screenGui.Enabled = not screenGui.Enabled
+        FOVCircle.Visible = screenGui.Enabled
+    end
+
+    if not gameProcessed and input.UserInputType == Enum.UserInputType.MouseButton5 then
+        holdingMouseButton5 = true
+        FOVCircle.Color = Color3.fromRGB(0, 255, 0)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+    if input.UserInputType == Enum.UserInputType.MouseButton5 then
+        holdingMouseButton5 = false
+        FOVCircle.Color = Color3.fromRGB(255, 0, 0)
+    end
+end)
+
+local function DispararCombo()
+    if firingCombo then return end
+    firingCombo = true
+
+    local character = LocalPlayer.Character
+    local backpack = LocalPlayer.Backpack
+
+    if character and backpack and character:FindFirstChild("Humanoid") then
+        local toolsInBackpack = {}
+        for _, item in ipairs(backpack:GetChildren()) do
+            if item:IsA("Tool") then
+                table.insert(toolsInBackpack, item)
+            end
+        end
+
+        local slotsToFire = {5, 4, 3}
+
+        for _, slotIndex in ipairs(slotsToFire) do
+            local toolToEquip = toolsInBackpack[slotIndex]
+            
+            if toolToEquip then
+                character.Humanoid:EquipTool(toolToEquip)
+                task.wait(0.05)
+                
+                if mouse1click then
+                    mouse1click()
+                else
+                    toolToEquip:Activate()
+                end
+                
+                task.wait(0.05)
+                character.Humanoid:UnequipTools()
+            end
+        end
+    end
+
+    task.wait(0.5)
+    firingCombo = false
+end
+
+RunService.RenderStepped:Connect(function()
+    local mouseLocation = UserInputService:GetMouseLocation()
+    FOVCircle.Position = mouseLocation
+
+    if holdingMouseButton5 and getgenv().XenoTriggerBot then
+        local target = Mouse.Target
+        
+        if target and target.Parent and target.Parent:FindFirstChild("Humanoid") then
+            local playerObjetivo = Players:GetPlayerFromCharacter(target.Parent)
+            
+            if playerObjetivo and playerObjetivo ~= LocalPlayer and target.Parent.Humanoid.Health > 0 then
+                local vector, onScreen = Camera:WorldToViewportPoint(target.Position)
+                local distance = (Vector2.new(vector.X, vector.Y) - mouseLocation).Magnitude
+                
+                if distance <= FOVCircle.Radius then
+                    DispararCombo()
+                end
+            end
+        end
+    end
+end)
