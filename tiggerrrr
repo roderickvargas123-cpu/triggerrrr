@@ -8,14 +8,11 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local CoreGui = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
+local Camera = workspace.CurrentCamera
 
 local holdingTriggerButton = false
 local firingCombo = false
 
--- ==========================================
--- INTERFAZ GRÁFICA (GUI)
--- ==========================================
 local hiddenUI = (gethui and gethui()) or CoreGui
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "XenoGUI"
@@ -26,13 +23,13 @@ frame.Size = UDim2.new(0, 220, 0, 70)
 frame.Position = UDim2.new(0.02, 0, 0.05, 0)
 frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 frame.BorderSizePixel = 2
-frame.BorderColor3 = Color3.fromRGB(255, 0, 0) -- Rojo por defecto
+frame.BorderColor3 = Color3.fromRGB(255, 0, 0)
 frame.Parent = screenGui
 
 local textLabel = Instance.new("TextLabel")
 textLabel.Size = UDim2.new(1, 0, 0, 40)
 textLabel.BackgroundTransparency = 1
-textLabel.Text = "[ XENO: Hold Mouse4/Mouse5 ]"
+textLabel.Text = "[ XENO ACTIVADO: Hold 'C' ]"
 textLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
 textLabel.Font = Enum.Font.Code
 textLabel.TextSize = 13
@@ -48,33 +45,26 @@ hideLabel.Font = Enum.Font.SourceSans
 hideLabel.TextSize = 14
 hideLabel.Parent = frame
 
--- ==========================================
--- CONTROLES
--- ==========================================
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if input.KeyCode == Enum.KeyCode.Insert then
         screenGui.Enabled = not screenGui.Enabled
     end
 
-    if not gameProcessed and (input.UserInputType == Enum.UserInputType.MouseButton5 or input.UserInputType == Enum.UserInputType.MouseButton4) then
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.C then
         holdingTriggerButton = true
-        frame.BorderColor3 = Color3.fromRGB(0, 255, 0) -- Borde verde al presionar
+        frame.BorderColor3 = Color3.fromRGB(0, 255, 0)
     end
 end)
 
 UserInputService.InputEnded:Connect(function(input, gameProcessed)
-    if input.UserInputType == Enum.UserInputType.MouseButton5 or input.UserInputType == Enum.UserInputType.MouseButton4 then
+    if input.KeyCode == Enum.KeyCode.C then
         holdingTriggerButton = false
-        frame.BorderColor3 = Color3.fromRGB(255, 0, 0) -- Borde rojo al soltar
+        frame.BorderColor3 = Color3.fromRGB(255, 0, 0)
     end
 end)
 
--- ==========================================
--- FUNCIONES DE SIMULACIÓN (CLIC Y TECLADO)
--- ==========================================
 local function SimularClic()
     if mouse1press then
-        -- mouse1press y mouse1release son más precisos que mouse1click
         mouse1press()
         task.wait(0.02)
         mouse1release()
@@ -91,52 +81,44 @@ local function PresionarTecla(tecla)
     VirtualInputManager:SendKeyEvent(false, tecla, false, game)
 end
 
--- ==========================================
--- MACRO COMBO (DISPARA -> 4 -> DISPARA -> 5 -> DISPARA)
--- ==========================================
 local function DispararCombo()
     if firingCombo then return end
     firingCombo = true
 
-    -- 1. Dispara el arma que ya tienes equipada (ej. la 3)
     SimularClic()
     task.wait(0.05) 
 
-    -- 2. Cambia al arma 4 y dispara
     PresionarTecla(Enum.KeyCode.Four)
-    task.wait(0.05) -- Pausa para que el personaje saque el arma
+    task.wait(0.05)
     SimularClic()
     task.wait(0.05)
 
-    -- 3. Cambia al arma 5 y dispara
     PresionarTecla(Enum.KeyCode.Five)
     task.wait(0.05)
     SimularClic()
-    
-    -- Opcional: Si quieres que vuelva al arma 3 automáticamente después del combo, 
-    -- descomenta (quita los dos guiones) de la siguiente línea:
-    -- PresionarTecla(Enum.KeyCode.Three)
 
-    task.wait(0.4) -- Cooldown general para no trabar el juego
+    task.wait(0.4)
     firingCombo = false
 end
 
--- ==========================================
--- TRIGGER BOT CLÁSICO E INFALIBLE
--- ==========================================
 RunService.RenderStepped:Connect(function()
-    if holdingTriggerButton and getgenv().XenoTriggerBot then
-        -- Mira exactamente qué está tocando el puntero del mouse
-        local target = Mouse.Target
+    if holdingTriggerButton and getgenv().XenoTriggerBot and LocalPlayer.Character then
         
-        if target then
-            -- Busca si el bloque que estamos mirando pertenece a un Modelo (Avatar)
-            local model = target:FindFirstAncestorOfClass("Model")
+        local rayParams = RaycastParams.new()
+        rayParams.FilterType = Enum.RaycastFilterType.Exclude
+        rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
+        
+        local viewportPoint = Camera.ViewportSize / 2
+        local unitRay = Camera:ViewportPointToRay(viewportPoint.X, viewportPoint.Y)
+        
+        local rayResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, rayParams)
+        
+        if rayResult and rayResult.Instance then
+            local model = rayResult.Instance:FindFirstAncestorOfClass("Model")
             
             if model and model:FindFirstChild("Humanoid") and model.Humanoid.Health > 0 then
                 local targetPlayer = Players:GetPlayerFromCharacter(model)
                 
-                -- Si ese modelo es de un jugador real y no somos nosotros mismos
                 if targetPlayer and targetPlayer ~= LocalPlayer then
                     DispararCombo()
                 end
