@@ -4,15 +4,18 @@ getgenv().XenoTriggerBot = true
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 local CoreGui = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
 local Camera = workspace.CurrentCamera
 
-local holdingMouseButton5 = false
+local holdingTriggerButton = false
 local firingCombo = false
 
+-- ==========================================
+-- DIBUJO DEL CÍRCULO FOV
+-- ==========================================
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Radius = 100
 FOVCircle.Color = Color3.fromRGB(255, 0, 0)
@@ -20,6 +23,9 @@ FOVCircle.Thickness = 1.5
 FOVCircle.Filled = false
 FOVCircle.Visible = true
 
+-- ==========================================
+-- INTERFAZ GRÁFICA (GUI)
+-- ==========================================
 local hiddenUI = (gethui and gethui()) or CoreGui
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "XenoGUI"
@@ -36,99 +42,120 @@ frame.Parent = screenGui
 local textLabel = Instance.new("TextLabel")
 textLabel.Size = UDim2.new(1, 0, 0, 40)
 textLabel.BackgroundTransparency = 1
-textLabel.Text = "[ XENO ACTIVADO: Hold XButton2 ]"
+textLabel.Text = "[ XENO: Hold Mouse4/Mouse5 ]"
 textLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
 textLabel.Font = Enum.Font.Code
-textLabel.TextSize = 14
+textLabel.TextSize = 13
 textLabel.Parent = frame
 
 local hideLabel = Instance.new("TextLabel")
 hideLabel.Size = UDim2.new(1, 0, 0, 20)
 hideLabel.Position = UDim2.new(0, 0, 0, 40)
 hideLabel.BackgroundTransparency = 1
-hideLabel.Text = "[INSERT] para Ocultar/Mostrar Menú"
+hideLabel.Text = "[INSERT] para Ocultar Menú"
 hideLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 hideLabel.Font = Enum.Font.SourceSans
 hideLabel.TextSize = 14
 hideLabel.Parent = frame
 
+-- ==========================================
+-- CONTROLES (SOPORTA MOUSE4 Y MOUSE5)
+-- ==========================================
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if input.KeyCode == Enum.KeyCode.Insert then
         screenGui.Enabled = not screenGui.Enabled
         FOVCircle.Visible = screenGui.Enabled
     end
 
-    if not gameProcessed and input.UserInputType == Enum.UserInputType.MouseButton5 then
-        holdingMouseButton5 = true
-        FOVCircle.Color = Color3.fromRGB(0, 255, 0)
+    -- Detecta tanto el botón 4 como el 5 por si Razer Synapse los invierte
+    if not gameProcessed and (input.UserInputType == Enum.UserInputType.MouseButton5 or input.UserInputType == Enum.UserInputType.MouseButton4) then
+        holdingTriggerButton = true
+        FOVCircle.Color = Color3.fromRGB(0, 255, 0) -- Se pone verde al presionar
     end
 end)
 
 UserInputService.InputEnded:Connect(function(input, gameProcessed)
-    if input.UserInputType == Enum.UserInputType.MouseButton5 then
-        holdingMouseButton5 = false
-        FOVCircle.Color = Color3.fromRGB(255, 0, 0)
+    if input.UserInputType == Enum.UserInputType.MouseButton5 or input.UserInputType == Enum.UserInputType.MouseButton4 then
+        holdingTriggerButton = false
+        FOVCircle.Color = Color3.fromRGB(255, 0, 0) -- Vuelve a rojo
     end
 end)
 
+-- ==========================================
+-- MACRO EXACTA DE AHK (SIMULADOR DE TECLAS)
+-- ==========================================
 local function DispararCombo()
     if firingCombo then return end
     firingCombo = true
 
-    local character = LocalPlayer.Character
-    local backpack = LocalPlayer.Backpack
+    -- Orden exacto de tu AHK: Teclas 5, 4, 3
+    local teclasCombo = {Enum.KeyCode.Five, Enum.KeyCode.Four, Enum.KeyCode.Three}
 
-    if character and backpack and character:FindFirstChild("Humanoid") then
-        local toolsInBackpack = {}
-        for _, item in ipairs(backpack:GetChildren()) do
-            if item:IsA("Tool") then
-                table.insert(toolsInBackpack, item)
-            end
+    for _, tecla in ipairs(teclasCombo) do
+        -- 1. Simular presionar el número en el teclado
+        VirtualInputManager:SendKeyEvent(true, tecla, false, game)
+        task.wait(0.02)
+        VirtualInputManager:SendKeyEvent(false, tecla, false, game)
+        
+        -- Pausa para que el juego saque el arma de la funda
+        task.wait(0.05) 
+        
+        -- 2. Simular Clic Izquierdo para disparar
+        if mouse1click then
+            mouse1click()
+        else
+            -- Plan B si mouse1click falla: VirtualInputManager clic
+            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+            task.wait(0.02)
+            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
         end
-
-        local slotsToFire = {5, 4, 3}
-
-        for _, slotIndex in ipairs(slotsToFire) do
-            local toolToEquip = toolsInBackpack[slotIndex]
-            
-            if toolToEquip then
-                character.Humanoid:EquipTool(toolToEquip)
-                task.wait(0.05)
-                
-                if mouse1click then
-                    mouse1click()
-                else
-                    toolToEquip:Activate()
-                end
-                
-                task.wait(0.05)
-                character.Humanoid:UnequipTools()
-            end
-        end
+        
+        -- Pausa antes de sacar la siguiente arma
+        task.wait(0.05)
     end
 
-    task.wait(0.5)
+    task.wait(0.5) -- Cooldown para no crashear
     firingCombo = false
 end
 
+-- ==========================================
+-- TRIGGER BOT AVANZADO (MATH & ESP)
+-- ==========================================
 RunService.RenderStepped:Connect(function()
     local mouseLocation = UserInputService:GetMouseLocation()
     FOVCircle.Position = mouseLocation
 
-    if holdingMouseButton5 and getgenv().XenoTriggerBot then
-        local target = Mouse.Target
-        
-        if target and target.Parent and target.Parent:FindFirstChild("Humanoid") then
-            local playerObjetivo = Players:GetPlayerFromCharacter(target.Parent)
-            
-            if playerObjetivo and playerObjetivo ~= LocalPlayer and target.Parent.Humanoid.Health > 0 then
-                local vector, onScreen = Camera:WorldToViewportPoint(target.Position)
-                local distance = (Vector2.new(vector.X, vector.Y) - mouseLocation).Magnitude
+    if holdingTriggerButton and getgenv().XenoTriggerBot then
+        local objetivoEncontrado = false
+
+        -- Escanear a todos los jugadores del servidor
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
                 
-                if distance <= FOVCircle.Radius then
-                    DispararCombo()
+                -- Buscar el torso o la cabeza
+                local objetivoHitbox = player.Character:FindFirstChild("HumanoidRootPart") or player.Character:FindFirstChild("Head")
+                
+                if objetivoHitbox then
+                    -- Calcular en qué parte de tu pantalla está ese jugador
+                    local vector, onScreen = Camera:WorldToViewportPoint(objetivoHitbox.Position)
+                    
+                    if onScreen then
+                        -- Medir la distancia entre el jugador y tu ratón
+                        local distance = (Vector2.new(vector.X, vector.Y) - mouseLocation).Magnitude
+                        
+                        -- Si la distancia es menor al radio del círculo, ¡ESTÁ EN LA MIRA!
+                        if distance <= FOVCircle.Radius then
+                            objetivoEncontrado = true
+                            break -- Romper el loop, ya encontramos a alguien
+                        end
+                    end
                 end
             end
+        end
+
+        -- Si alguien está dentro del círculo verde, dispara
+        if objetivoEncontrado then
+            DispararCombo()
         end
     end
 end)
