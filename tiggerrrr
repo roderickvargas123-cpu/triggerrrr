@@ -13,6 +13,9 @@ local Camera = workspace.CurrentCamera
 local holdingTriggerButton = false
 local firingCombo = false
 
+-- ==========================================
+-- INTERFAZ GRÁFICA (GUI)
+-- ==========================================
 local hiddenUI = (gethui and gethui()) or CoreGui
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "XenoGUI"
@@ -45,11 +48,15 @@ hideLabel.Font = Enum.Font.SourceSans
 hideLabel.TextSize = 14
 hideLabel.Parent = frame
 
+-- ==========================================
+-- CONTROLES (TECLA C)
+-- ==========================================
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if input.KeyCode == Enum.KeyCode.Insert then
         screenGui.Enabled = not screenGui.Enabled
     end
 
+    -- Activar al presionar 'C' (ignorando si estás escribiendo en el chat)
     if not gameProcessed and input.KeyCode == Enum.KeyCode.C then
         holdingTriggerButton = true
         frame.BorderColor3 = Color3.fromRGB(0, 255, 0)
@@ -63,47 +70,48 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     end
 end)
 
-local function SimularClic()
-    if mouse1press then
-        mouse1press()
-        task.wait(0.02)
-        mouse1release()
-    else
-        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-        task.wait(0.02)
-        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
-    end
-end
-
-local function PresionarTecla(tecla)
-    VirtualInputManager:SendKeyEvent(true, tecla, false, game)
-    task.wait(0.02)
-    VirtualInputManager:SendKeyEvent(false, tecla, false, game)
-end
-
-local function DispararCombo()
+-- ==========================================
+-- MACRO EXTREMA (5 -> Click -> 4 -> Click -> 3 -> Click)
+-- ==========================================
+local function DispararComboRapido()
     if firingCombo then return end
     firingCombo = true
 
-    SimularClic()
-    task.wait(0.05) 
+    -- Orden exacto de tu AHK
+    local secuencia = {Enum.KeyCode.Five, Enum.KeyCode.Four, Enum.KeyCode.Three}
 
-    PresionarTecla(Enum.KeyCode.Four)
-    task.wait(0.05)
-    SimularClic()
-    task.wait(0.05)
+    for _, tecla in ipairs(secuencia) do
+        -- Simula presionar y soltar el número instantáneamente
+        VirtualInputManager:SendKeyEvent(true, tecla, false, game)
+        VirtualInputManager:SendKeyEvent(false, tecla, false, game)
+        
+        -- Espera mínima de 1 frame para que el juego registre el cambio de arma
+        task.wait() 
+        
+        -- Simula el clic izquierdo
+        if mouse1click then
+            mouse1click()
+        else
+            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+        end
+        
+        -- Espera mínima de 1 frame antes de cambiar a la siguiente arma
+        task.wait()
+    end
 
-    PresionarTecla(Enum.KeyCode.Five)
-    task.wait(0.05)
-    SimularClic()
-
-    task.wait(0.4)
+    -- Pequeño enfriamiento para que no se sature el servidor ni crashee tu juego
+    task.wait(0.2)
     firingCombo = false
 end
 
+-- ==========================================
+-- TRIGGER BOT POR RAYCAST (CENTRO DE PANTALLA)
+-- ==========================================
 RunService.RenderStepped:Connect(function()
     if holdingTriggerButton and getgenv().XenoTriggerBot and LocalPlayer.Character then
         
+        -- Dispara un rayo invisible desde el centro de la cámara
         local rayParams = RaycastParams.new()
         rayParams.FilterType = Enum.RaycastFilterType.Exclude
         rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
@@ -113,14 +121,17 @@ RunService.RenderStepped:Connect(function()
         
         local rayResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, rayParams)
         
+        -- Si el rayo choca con algo
         if rayResult and rayResult.Instance then
             local model = rayResult.Instance:FindFirstAncestorOfClass("Model")
             
+            -- Si ese algo es un jugador con vida
             if model and model:FindFirstChild("Humanoid") and model.Humanoid.Health > 0 then
                 local targetPlayer = Players:GetPlayerFromCharacter(model)
                 
+                -- Si no eres tú mismo, dispara el combo
                 if targetPlayer and targetPlayer ~= LocalPlayer then
-                    DispararCombo()
+                    DispararComboRapido()
                 end
             end
         end
