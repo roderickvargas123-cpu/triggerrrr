@@ -13,13 +13,6 @@ local Camera = workspace.CurrentCamera
 local holdingTriggerButton = false
 local firingCombo = false
 
-local FOVCircle = Drawing.new("Circle")
-FOVCircle.Radius = 60 
-FOVCircle.Color = Color3.fromRGB(255, 0, 0)
-FOVCircle.Thickness = 1.5
-FOVCircle.Filled = false
-FOVCircle.Visible = true
-
 local hiddenUI = (gethui and gethui()) or CoreGui
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "XenoGUI"
@@ -55,13 +48,11 @@ hideLabel.Parent = frame
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if input.KeyCode == Enum.KeyCode.Insert then
         screenGui.Enabled = not screenGui.Enabled
-        FOVCircle.Visible = screenGui.Enabled
     end
 
     if not gameProcessed and input.KeyCode == Enum.KeyCode.P then
         holdingTriggerButton = true
         frame.BorderColor3 = Color3.fromRGB(0, 255, 0)
-        FOVCircle.Color = Color3.fromRGB(0, 255, 0)
     end
 end)
 
@@ -69,7 +60,6 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     if input.KeyCode == Enum.KeyCode.P then
         holdingTriggerButton = false
         frame.BorderColor3 = Color3.fromRGB(255, 0, 0)
-        FOVCircle.Color = Color3.fromRGB(255, 0, 0)
     end
 end)
 
@@ -100,34 +90,35 @@ local function DispararComboRapido()
 end
 
 RunService.RenderStepped:Connect(function()
-    local mouseLocation = UserInputService:GetMouseLocation()
-    FOVCircle.Position = mouseLocation
-
     if holdingTriggerButton and getgenv().XenoTriggerBot and LocalPlayer.Character then
-        local objetivoEncontrado = false
-
+        
+        local enemigos = {}
         for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
-                
-                local hitbox = player.Character:FindFirstChild("HumanoidRootPart") or player.Character:FindFirstChild("Head")
-                
-                if hitbox then
-                    local vector, onScreen = Camera:WorldToViewportPoint(hitbox.Position)
-                    
-                    if onScreen then
-                        local distance = (Vector2.new(vector.X, vector.Y) - mouseLocation).Magnitude
-                        
-                        if distance <= FOVCircle.Radius then
-                            objetivoEncontrado = true
-                            break
-                        end
-                    end
-                end
+            if player ~= LocalPlayer and player.Character then
+                table.insert(enemigos, player.Character)
             end
         end
-
-        if objetivoEncontrado then
-            DispararComboRapido()
+        
+        local rayParams = RaycastParams.new()
+        rayParams.FilterType = Enum.RaycastFilterType.Include
+        rayParams.FilterDescendantsInstances = enemigos
+        rayParams.IgnoreWater = true
+        
+        local viewportPoint = Camera.ViewportSize / 2
+        local unitRay = Camera:ViewportPointToRay(viewportPoint.X, viewportPoint.Y)
+        
+        local rayResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, rayParams)
+        
+        if rayResult and rayResult.Instance then
+            local model = rayResult.Instance:FindFirstAncestorOfClass("Model")
+            
+            if model and model:FindFirstChild("Humanoid") and model.Humanoid.Health > 0 then
+                local targetPlayer = Players:GetPlayerFromCharacter(model)
+                
+                if targetPlayer and targetPlayer ~= LocalPlayer then
+                    DispararComboRapido()
+                end
+            end
         end
     end
 end)
