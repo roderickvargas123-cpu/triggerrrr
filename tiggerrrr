@@ -104,8 +104,12 @@ RunService.RenderStepped:Connect(function()
         rayParams.FilterDescendantsInstances = enemigos
         rayParams.IgnoreWater = true
         
-        local viewportPoint = Camera.ViewportSize / 2
-        local unitRay = Camera:ViewportPointToRay(viewportPoint.X, viewportPoint.Y)
+        -- AQUI ESTÁ LA MAGIA DEL TERCERA PERSONA:
+        -- Obtenemos la posición exacta del ratón en la pantalla en lugar del centro
+        local mousePos = UserInputService:GetMouseLocation()
+        
+        -- Disparamos el rayo desde esa posición específica del ratón
+        local unitRay = Camera:ViewportPointToRay(mousePos.X, mousePos.Y)
         
         local rayResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, rayParams)
         
