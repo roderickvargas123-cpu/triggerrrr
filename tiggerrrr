@@ -13,9 +13,13 @@ local Camera = workspace.CurrentCamera
 local holdingTriggerButton = false
 local firingCombo = false
 
--- ==========================================
--- INTERFAZ GRÁFICA (GUI)
--- ==========================================
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Radius = 60 
+FOVCircle.Color = Color3.fromRGB(255, 0, 0)
+FOVCircle.Thickness = 1.5
+FOVCircle.Filled = false
+FOVCircle.Visible = true
+
 local hiddenUI = (gethui and gethui()) or CoreGui
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "XenoGUI"
@@ -48,18 +52,16 @@ hideLabel.Font = Enum.Font.SourceSans
 hideLabel.TextSize = 14
 hideLabel.Parent = frame
 
--- ==========================================
--- CONTROLES (TECLA P)
--- ==========================================
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if input.KeyCode == Enum.KeyCode.Insert then
         screenGui.Enabled = not screenGui.Enabled
+        FOVCircle.Visible = screenGui.Enabled
     end
 
-    -- Activar al presionar 'P' (ignorando si estás escribiendo en el chat)
     if not gameProcessed and input.KeyCode == Enum.KeyCode.P then
         holdingTriggerButton = true
         frame.BorderColor3 = Color3.fromRGB(0, 255, 0)
+        FOVCircle.Color = Color3.fromRGB(0, 255, 0)
     end
 end)
 
@@ -67,28 +69,22 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     if input.KeyCode == Enum.KeyCode.P then
         holdingTriggerButton = false
         frame.BorderColor3 = Color3.fromRGB(255, 0, 0)
+        FOVCircle.Color = Color3.fromRGB(255, 0, 0)
     end
 end)
 
--- ==========================================
--- MACRO EXTREMA (5 -> Click -> 4 -> Click -> 3 -> Click)
--- ==========================================
 local function DispararComboRapido()
     if firingCombo then return end
     firingCombo = true
 
-    -- Orden exacto de tu AHK
     local secuencia = {Enum.KeyCode.Five, Enum.KeyCode.Four, Enum.KeyCode.Three}
 
     for _, tecla in ipairs(secuencia) do
-        -- Simula presionar y soltar el número instantáneamente
         VirtualInputManager:SendKeyEvent(true, tecla, false, game)
         VirtualInputManager:SendKeyEvent(false, tecla, false, game)
         
-        -- Espera mínima de 1 frame para que el juego registre el cambio de arma
         task.wait() 
         
-        -- Simula el clic izquierdo
         if mouse1click then
             mouse1click()
         else
@@ -96,44 +92,42 @@ local function DispararComboRapido()
             VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
         end
         
-        -- Espera mínima de 1 frame antes de cambiar a la siguiente arma
         task.wait()
     end
 
-    -- Pequeño enfriamiento para que no se sature el servidor ni crashee tu juego
     task.wait(0.2)
     firingCombo = false
 end
 
--- ==========================================
--- TRIGGER BOT POR RAYCAST (CENTRO DE PANTALLA)
--- ==========================================
 RunService.RenderStepped:Connect(function()
+    local mouseLocation = UserInputService:GetMouseLocation()
+    FOVCircle.Position = mouseLocation
+
     if holdingTriggerButton and getgenv().XenoTriggerBot and LocalPlayer.Character then
-        
-        -- Dispara un rayo invisible desde el centro de la cámara
-        local rayParams = RaycastParams.new()
-        rayParams.FilterType = Enum.RaycastFilterType.Exclude
-        rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
-        
-        local viewportPoint = Camera.ViewportSize / 2
-        local unitRay = Camera:ViewportPointToRay(viewportPoint.X, viewportPoint.Y)
-        
-        local rayResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, rayParams)
-        
-        -- Si el rayo choca con algo
-        if rayResult and rayResult.Instance then
-            local model = rayResult.Instance:FindFirstAncestorOfClass("Model")
-            
-            -- Si ese algo es un jugador con vida
-            if model and model:FindFirstChild("Humanoid") and model.Humanoid.Health > 0 then
-                local targetPlayer = Players:GetPlayerFromCharacter(model)
+        local objetivoEncontrado = false
+
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
                 
-                -- Si no eres tú mismo, dispara el combo
-                if targetPlayer and targetPlayer ~= LocalPlayer then
-                    DispararComboRapido()
+                local hitbox = player.Character:FindFirstChild("HumanoidRootPart") or player.Character:FindFirstChild("Head")
+                
+                if hitbox then
+                    local vector, onScreen = Camera:WorldToViewportPoint(hitbox.Position)
+                    
+                    if onScreen then
+                        local distance = (Vector2.new(vector.X, vector.Y) - mouseLocation).Magnitude
+                        
+                        if distance <= FOVCircle.Radius then
+                            objetivoEncontrado = true
+                            break
+                        end
+                    end
                 end
             end
+        end
+
+        if objetivoEncontrado then
+            DispararComboRapido()
         end
     end
 end)
