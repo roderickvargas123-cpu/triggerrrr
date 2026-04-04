@@ -73,7 +73,7 @@ local function DispararComboRapido()
         VirtualInputManager:SendKeyEvent(true, tecla, false, game)
         VirtualInputManager:SendKeyEvent(false, tecla, false, game)
         
-        -- PUNTO MEDIO: Espera 0.01s (Más rápido que AHK, pero no instantáneo)
+        -- Retraso interno entre armas para evitar colapso del servidor
         task.wait(0.01) 
         
         if mouse1click then
@@ -83,11 +83,12 @@ local function DispararComboRapido()
             VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
         end
         
-        -- PUNTO MEDIO: Espera 0.01s para el siguiente cambio de arma
+        -- Retraso interno tras el clic
         task.wait(0.01)
     end
 
-    task.wait(0.2)
+    -- RETRASO DE CICLO AUMENTADO (Simula el retraso inicial de repetición de Windows/AHK)
+    task.wait(0.5)
     firingCombo = false
 end
 
@@ -106,7 +107,6 @@ RunService.RenderStepped:Connect(function()
         rayParams.FilterDescendantsInstances = enemigos
         rayParams.IgnoreWater = true
         
-        -- AQUI ESTÁ LA MAGIA DEL TERCERA PERSONA:
         -- Obtenemos la posición exacta del ratón en la pantalla en lugar del centro
         local mousePos = UserInputService:GetMouseLocation()
         
