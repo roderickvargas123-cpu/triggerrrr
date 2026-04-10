@@ -13,9 +13,6 @@ local Camera = workspace.CurrentCamera
 local holdingTriggerButton = false
 local firingCombo = false
 
--- ==========================================
--- INTERFAZ GRÁFICA (OCULTA EN COREGUI)
--- ==========================================
 local hiddenUI = (gethui and gethui()) or CoreGui
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "XenoGUI"
@@ -48,9 +45,6 @@ hideLabel.Font = Enum.Font.SourceSans
 hideLabel.TextSize = 14
 hideLabel.Parent = frame
 
--- ==========================================
--- CONTROLES DE TECLADO
--- ==========================================
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if input.KeyCode == Enum.KeyCode.Insert then
         screenGui.Enabled = not screenGui.Enabled
@@ -69,9 +63,6 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     end
 end)
 
--- ==========================================
--- SISTEMA DE COMBO
--- ==========================================
 local function DispararComboRapido()
     if firingCombo then return end
     firingCombo = true
@@ -82,6 +73,7 @@ local function DispararComboRapido()
         VirtualInputManager:SendKeyEvent(true, tecla, false, game)
         VirtualInputManager:SendKeyEvent(false, tecla, false, game)
         
+        -- Retraso interno entre armas para evitar colapso del servidor
         task.wait(0.01) 
         
         if mouse1click then
@@ -91,58 +83,36 @@ local function DispararComboRapido()
             VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
         end
         
+        -- Retraso interno tras el clic
         task.wait(0.01)
     end
 
+    -- RETRASO DE CICLO AUMENTADO (Simula el retraso inicial de repetición de Windows/AHK)
     task.wait(0.5)
     firingCombo = false
 end
 
--- ==========================================
--- MOTOR PRINCIPAL Y FILTRO FANTASMA
--- ==========================================
--- IMPORTANTE: Objeto creado fuera del bucle para evitar fugas de memoria (Crasheos)
-local rayParams = RaycastParams.new()
-rayParams.FilterType = Enum.RaycastFilterType.Include
-rayParams.IgnoreWater = true
-
 RunService.RenderStepped:Connect(function()
     if holdingTriggerButton and getgenv().XenoTriggerBot and LocalPlayer.Character then
         
-        -- 1. CREAMOS LA LISTA DE BLANCOS VÁLIDOS
-        local blancosValidos = {}
-        
+        local enemigos = {}
         for _, player in ipairs(Players:GetPlayers()) do
             if player ~= LocalPlayer and player.Character then
-                
-                local char = player.Character
-                local isKnocked = false
-                local bodyEffects = char:FindFirstChild("BodyEffects")
-                
-                -- Búsqueda ultra segura: buscamos la bandera para no crashear
-                if bodyEffects then
-                    local koFlag = bodyEffects:FindFirstChild("K.O") or bodyEffects:FindFirstChild("KO") or bodyEffects:FindFirstChild("Knocked") or bodyEffects:FindFirstChild("Dead")
-                    
-                    -- Verificamos que exista y que sea un valor verdadero
-                    if koFlag and koFlag:IsA("BoolValue") and koFlag.Value == true then
-                        isKnocked = true
-                    end
-                end
-                
-                -- Si NO está noqueado, lo metemos a la lista de colisiones físicas
-                if not isKnocked then
-                    table.insert(blancosValidos, char)
-                end
+                table.insert(enemigos, player.Character)
             end
         end
         
-        -- 2. ACTUALIZAMOS EL RAYO
-        rayParams.FilterDescendantsInstances = blancosValidos
+        local rayParams = RaycastParams.new()
+        rayParams.FilterType = Enum.RaycastFilterType.Include
+        rayParams.FilterDescendantsInstances = enemigos
+        rayParams.IgnoreWater = true
         
+        -- Obtenemos la posición exacta del ratón en la pantalla en lugar del centro
         local mousePos = UserInputService:GetMouseLocation()
+        
+        -- Disparamos el rayo desde esa posición específica del ratón
         local unitRay = Camera:ViewportPointToRay(mousePos.X, mousePos.Y)
         
-        -- 3. EL DISPARO
         local rayResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, rayParams)
         
         if rayResult and rayResult.Instance then
@@ -152,8 +122,24 @@ RunService.RenderStepped:Connect(function()
                 local targetPlayer = Players:GetPlayerFromCharacter(model)
                 
                 if targetPlayer and targetPlayer ~= LocalPlayer then
-                    -- El rayo ya filtró a los noqueados, disparamos directo
-                    DispararComboRapido()
+                    
+                    -- ==========================================
+                    -- EL KNOCK CHECK (Filtro de estado de Da Hood)
+                    -- ==========================================
+                    local estaNoqueado = false
+                    local bodyEffects = model:FindFirstChild("BodyEffects")
+                    
+                    -- Buscamos el BoolValue "K.O" dentro de la carpeta BodyEffects
+                    if bodyEffects and bodyEffects:FindFirstChild("K.O") then
+                        estaNoqueado = bodyEffects["K.O"].Value
+                    end
+                    
+                    -- Solo disparamos el combo si el jugador NO está en el suelo
+                    if not estaNoqueado then
+                        DispararComboRapido()
+                    end
+                    -- ==========================================
+                    
                 end
             end
         end
