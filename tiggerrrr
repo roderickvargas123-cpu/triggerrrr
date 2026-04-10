@@ -122,7 +122,24 @@ RunService.RenderStepped:Connect(function()
                 local targetPlayer = Players:GetPlayerFromCharacter(model)
                 
                 if targetPlayer and targetPlayer ~= LocalPlayer then
-                    DispararComboRapido()
+                    
+                    -- ==========================================
+                    -- EL KNOCK CHECK (Filtro de estado de Da Hood)
+                    -- ==========================================
+                    local estaNoqueado = false
+                    local bodyEffects = model:FindFirstChild("BodyEffects")
+                    
+                    -- Buscamos el BoolValue "K.O" dentro de la carpeta BodyEffects
+                    if bodyEffects and bodyEffects:FindFirstChild("K.O") then
+                        estaNoqueado = bodyEffects["K.O"].Value
+                    end
+                    
+                    -- Solo disparamos el combo si el jugador NO está en el suelo
+                    if not estaNoqueado then
+                        DispararComboRapido()
+                    end
+                    -- ==========================================
+                    
                 end
             end
         end
