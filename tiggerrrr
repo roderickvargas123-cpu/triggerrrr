@@ -1,55 +1,259 @@
-RunService.RenderStepped:Connect(function()
-    if holdingTriggerButton and getgenv().XenoTriggerBot and LocalPlayer.Character then
-        
-        -- 1. CREAMOS LA LISTA DE BLANCOS VÁLIDOS (El filtro fantasma)
-        local blancosValidos = {}
-        
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character then
-                
-                local char = player.Character
-                local isKnocked = false
-                local bodyEffects = char:FindFirstChild("BodyEffects")
-                
-                -- MULTI-FILTRO: Buscamos todos los nombres posibles que usan los clones de Da Hood
-                if bodyEffects then
-                    if bodyEffects:FindFirstChild("K.O") and bodyEffects["K.O"].Value == true then isKnocked = true end
-                    if bodyEffects:FindFirstChild("KO") and bodyEffects["KO"].Value == true then isKnocked = true end
-                    if bodyEffects:FindFirstChild("Knocked") and bodyEffects["Knocked"].Value == true then isKnocked = true end
-                    if bodyEffects:FindFirstChild("Dead") and bodyEffects["Dead"].Value == true then isKnocked = true end
-                end
-                
-                -- Si NO está noqueado, lo añadimos a la lista de colisiones
-                if not isKnocked then
-                    table.insert(blancosValidos, char)
-                end
-            end
-        end
-        
-        -- 2. CONFIGURAMOS EL RAYO PARA QUE SOLO VEA A LOS VALIDOS
-        local rayParams = RaycastParams.new()
-        rayParams.FilterType = Enum.RaycastFilterType.Include
-        rayParams.FilterDescendantsInstances = blancosValidos -- Los noqueados no existen para este rayo
-        rayParams.IgnoreWater = true
-        
-        local mousePos = UserInputService:GetMouseLocation()
-        local unitRay = Camera:ViewportPointToRay(mousePos.X, mousePos.Y)
-        
-        -- 3. EL DISPARO
-        local rayResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, rayParams)
-        
-        if rayResult and rayResult.Instance then
-            local model = rayResult.Instance:FindFirstAncestorOfClass("Model")
-            
-            if model and model:FindFirstChild("Humanoid") and model.Humanoid.Health > 0 then
-                local targetPlayer = Players:GetPlayerFromCharacter(model)
-                
-                if targetPlayer and targetPlayer ~= LocalPlayer then
-                    -- Ya no necesitamos preguntar aquí si está noqueado, 
-                    -- porque el rayo es físicamente incapaz de tocar a un noqueado.
-                    DispararComboRapido()
-                end
-            end
-        end
+if getgenv().XenoTriggerBot then return end
+
+getgenv().XenoTriggerBot = true
+
+
+
+local Players = game:GetService("Players")
+
+local RunService = game:GetService("RunService")
+
+local UserInputService = game:GetService("UserInputService")
+
+local VirtualInputManager = game:GetService("VirtualInputManager")
+
+local CoreGui = game:GetService("CoreGui")
+
+
+
+local LocalPlayer = Players.LocalPlayer
+
+local Camera = workspace.CurrentCamera
+
+
+
+local holdingTriggerButton = false
+
+local firingCombo = false
+
+
+
+local hiddenUI = (gethui and gethui()) or CoreGui
+
+local screenGui = Instance.new("ScreenGui")
+
+screenGui.Name = "XenoGUI"
+
+screenGui.Parent = hiddenUI
+
+
+
+local frame = Instance.new("Frame")
+
+frame.Size = UDim2.new(0, 220, 0, 70)
+
+frame.Position = UDim2.new(0.02, 0, 0.05, 0)
+
+frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+
+frame.BorderSizePixel = 2
+
+frame.BorderColor3 = Color3.fromRGB(255, 0, 0)
+
+frame.Parent = screenGui
+
+
+
+local textLabel = Instance.new("TextLabel")
+
+textLabel.Size = UDim2.new(1, 0, 0, 40)
+
+textLabel.BackgroundTransparency = 1
+
+textLabel.Text = "[ XENO ACTIVADO: Hold 'P' ]"
+
+textLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+
+textLabel.Font = Enum.Font.Code
+
+textLabel.TextSize = 13
+
+textLabel.Parent = frame
+
+
+
+local hideLabel = Instance.new("TextLabel")
+
+hideLabel.Size = UDim2.new(1, 0, 0, 20)
+
+hideLabel.Position = UDim2.new(0, 0, 0, 40)
+
+hideLabel.BackgroundTransparency = 1
+
+hideLabel.Text = "[INSERT] para Ocultar Menú"
+
+hideLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+
+hideLabel.Font = Enum.Font.SourceSans
+
+hideLabel.TextSize = 14
+
+hideLabel.Parent = frame
+
+
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+
+    if input.KeyCode == Enum.KeyCode.Insert then
+
+        screenGui.Enabled = not screenGui.Enabled
+
     end
+
+
+
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.P then
+
+        holdingTriggerButton = true
+
+        frame.BorderColor3 = Color3.fromRGB(0, 255, 0)
+
+    end
+
+end)
+
+
+
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+
+    if input.KeyCode == Enum.KeyCode.P then
+
+        holdingTriggerButton = false
+
+        frame.BorderColor3 = Color3.fromRGB(255, 0, 0)
+
+    end
+
+end)
+
+
+
+local function DispararComboRapido()
+
+    if firingCombo then return end
+
+    firingCombo = true
+
+
+
+    local secuencia = {Enum.KeyCode.Five, Enum.KeyCode.Four, Enum.KeyCode.Three}
+
+
+
+    for _, tecla in ipairs(secuencia) do
+
+        VirtualInputManager:SendKeyEvent(true, tecla, false, game)
+
+        VirtualInputManager:SendKeyEvent(false, tecla, false, game)
+
+        
+
+        -- Retraso interno entre armas para evitar colapso del servidor
+
+        task.wait(0.01) 
+
+        
+
+        if mouse1click then
+
+            mouse1click()
+
+        else
+
+            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+
+            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+
+        end
+
+        
+
+        -- Retraso interno tras el clic
+
+        task.wait(0.01)
+
+    end
+
+
+
+    -- RETRASO DE CICLO AUMENTADO (Simula el retraso inicial de repetición de Windows/AHK)
+
+    task.wait(0.5)
+
+    firingCombo = false
+
+end
+
+
+
+RunService.RenderStepped:Connect(function()
+
+    if holdingTriggerButton and getgenv().XenoTriggerBot and LocalPlayer.Character then
+
+        
+
+        local enemigos = {}
+
+        for _, player in ipairs(Players:GetPlayers()) do
+
+            if player ~= LocalPlayer and player.Character then
+
+                table.insert(enemigos, player.Character)
+
+            end
+
+        end
+
+        
+
+        local rayParams = RaycastParams.new()
+
+        rayParams.FilterType = Enum.RaycastFilterType.Include
+
+        rayParams.FilterDescendantsInstances = enemigos
+
+        rayParams.IgnoreWater = true
+
+        
+
+        -- Obtenemos la posición exacta del ratón en la pantalla en lugar del centro
+
+        local mousePos = UserInputService:GetMouseLocation()
+
+        
+
+        -- Disparamos el rayo desde esa posición específica del ratón
+
+        local unitRay = Camera:ViewportPointToRay(mousePos.X, mousePos.Y)
+
+        
+
+        local rayResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, rayParams)
+
+        
+
+        if rayResult and rayResult.Instance then
+
+            local model = rayResult.Instance:FindFirstAncestorOfClass("Model")
+
+            
+
+            if model and model:FindFirstChild("Humanoid") and model.Humanoid.Health > 0 then
+
+                local targetPlayer = Players:GetPlayerFromCharacter(model)
+
+                
+
+                if targetPlayer and targetPlayer ~= LocalPlayer then
+
+                    DispararComboRapido()
+
+                end
+
+            end
+
+        end
+
+    end
+
 end)
