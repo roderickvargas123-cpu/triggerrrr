@@ -98,6 +98,18 @@ RunService.RenderStepped:Connect(function()
         local enemigos = {}
         for _, player in ipairs(Players:GetPlayers()) do
             if player ~= LocalPlayer and player.Character then
+                
+                -- ==========================================
+                -- HITBOX EXPANDER AÑADIDO AQUÍ
+                -- ==========================================
+                local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    hrp.Size = Vector3.new(2.4, 2.4, 2.4) 
+                    hrp.Transparency = 1 
+                    hrp.CanCollide = false 
+                end
+                -- ==========================================
+                
                 table.insert(enemigos, player.Character)
             end
         end
