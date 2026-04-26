@@ -104,7 +104,7 @@ RunService.RenderStepped:Connect(function()
                 -- ==========================================
                 local hrp = player.Character:FindFirstChild("HumanoidRootPart")
                 if hrp then
-                    hrp.Size = Vector3.new(2.4, 2.4, 2.4) 
+                    hrp.Size = Vector3.new(2.2, 2.2, 2.2) -- Tamaño 2.2 para un radio exacto de 1.1
                     hrp.Transparency = 1 
                     hrp.CanCollide = false 
                 end
