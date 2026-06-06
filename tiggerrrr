@@ -74,7 +74,7 @@ local function DispararComboRapido()
         VirtualInputManager:SendKeyEvent(false, tecla, false, game)
         
         -- Retraso interno entre armas para evitar colapso del servidor
-        task.wait(0.01) 
+        task.wait() 
         
         if mouse1click then
             mouse1click()
@@ -84,7 +84,7 @@ local function DispararComboRapido()
         end
         
         -- Retraso interno tras el clic
-        task.wait(0.01)
+        task.wait()
     end
 
     -- RETRASO DE CICLO AUMENTADO (Simula el retraso inicial de repetición de Windows/AHK)
