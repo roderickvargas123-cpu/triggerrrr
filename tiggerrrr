@@ -6,10 +6,10 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local CoreGui = game:GetService("CoreGui")
-local GuiService = game:GetService("GuiService") -- Nuevo servicio añadido
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
+local Mouse = LocalPlayer:GetMouse() -- Volvemos a usar el Mouse nativo para la proyección
 
 local holdingTriggerButton = false
 local firingCombo = false
@@ -91,23 +91,22 @@ local function DispararComboRapido()
 end
 
 -- ==========================================
--- OPTIMIZACIÓN: Caché de Enemigos
+-- OPTIMIZACIÓN DE MEMORIA Y CACHÉ
 -- ==========================================
-local enemigosCache = {}
 local rayParams = RaycastParams.new()
 rayParams.FilterType = Enum.RaycastFilterType.Include
 rayParams.IgnoreWater = true
 
--- Actualizamos la lista solo 2 veces por segundo, no 60 veces
 task.spawn(function()
     while task.wait(0.5) do
-        table.clear(enemigosCache)
+        -- Crear una tabla completamente nueva en memoria evita bugs de referencia en el motor de Roblox
+        local nuevosEnemigos = {}
         for _, player in ipairs(Players:GetPlayers()) do
             if player ~= LocalPlayer and player.Character then
-                table.insert(enemigosCache, player.Character)
+                table.insert(nuevosEnemigos, player.Character)
             end
         end
-        rayParams.FilterDescendantsInstances = enemigosCache
+        rayParams.FilterDescendantsInstances = nuevosEnemigos
     end
 end)
 -- ==========================================
@@ -115,16 +114,10 @@ end)
 RunService.RenderStepped:Connect(function()
     if holdingTriggerButton and getgenv().XenoTriggerBot and LocalPlayer.Character then
         
-        -- 1. Obtenemos la posición bruta del ratón
-        local mousePos = UserInputService:GetMouseLocation()
+        -- PROYECCIÓN NATIVA: Mouse.UnitRay gestiona automáticamente cualquier
+        -- resolución, aspecto estirado o escalado de Windows.
+        local unitRay = Mouse.UnitRay
         
-        -- 2. Obtenemos el tamaño de la barra superior (GUI Inset)
-        local guiInset, _ = GuiService:GetGuiInset()
-        
-        -- 3. CORRECCIÓN MATEMÁTICA: Restamos el Inset para que el rayo salga EXACTO donde está tu mira
-        local unitRay = Camera:ViewportPointToRay(mousePos.X, mousePos.Y - guiInset.Y)
-        
-        -- El raycast ahora usa los parámetros optimizados (rayParams)
         local rayResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, rayParams)
         
         if rayResult and rayResult.Instance then
