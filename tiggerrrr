@@ -9,7 +9,6 @@ local CoreGui = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
-local Mouse = LocalPlayer:GetMouse() -- Volvemos a usar el Mouse nativo para la proyección
 
 local holdingTriggerButton = false
 local firingCombo = false
@@ -74,6 +73,7 @@ local function DispararComboRapido()
         VirtualInputManager:SendKeyEvent(true, tecla, false, game)
         VirtualInputManager:SendKeyEvent(false, tecla, false, game)
         
+        -- Retraso interno entre armas para evitar colapso del servidor
         task.wait() 
         
         if mouse1click then
@@ -83,15 +83,17 @@ local function DispararComboRapido()
             VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
         end
         
+        -- Retraso interno tras el clic
         task.wait()
     end
 
+    -- RETRASO DE CICLO AUMENTADO (Simula el retraso inicial de repetición de Windows/AHK)
     task.wait(0.5)
     firingCombo = false
 end
 
 -- ==========================================
--- OPTIMIZACIÓN DE MEMORIA Y CACHÉ
+-- OPTIMIZACIÓN: Caché de Enemigos (Rendimiento)
 -- ==========================================
 local rayParams = RaycastParams.new()
 rayParams.FilterType = Enum.RaycastFilterType.Include
@@ -99,7 +101,6 @@ rayParams.IgnoreWater = true
 
 task.spawn(function()
     while task.wait(0.5) do
-        -- Crear una tabla completamente nueva en memoria evita bugs de referencia en el motor de Roblox
         local nuevosEnemigos = {}
         for _, player in ipairs(Players:GetPlayers()) do
             if player ~= LocalPlayer and player.Character then
@@ -114,10 +115,13 @@ end)
 RunService.RenderStepped:Connect(function()
     if holdingTriggerButton and getgenv().XenoTriggerBot and LocalPlayer.Character then
         
-        -- PROYECCIÓN NATIVA: Mouse.UnitRay gestiona automáticamente cualquier
-        -- resolución, aspecto estirado o escalado de Windows.
-        local unitRay = Mouse.UnitRay
+        -- Obtenemos la posición exacta del ratón en la pantalla en lugar del centro
+        local mousePos = UserInputService:GetMouseLocation()
         
+        -- Disparamos el rayo desde esa posición específica del ratón
+        local unitRay = Camera:ViewportPointToRay(mousePos.X, mousePos.Y)
+        
+        -- Se utilizan los rayParams globales que se actualizan cada 0.5s en segundo plano
         local rayResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, rayParams)
         
         if rayResult and rayResult.Instance then
@@ -128,16 +132,22 @@ RunService.RenderStepped:Connect(function()
                 
                 if targetPlayer and targetPlayer ~= LocalPlayer then
                     
+                    -- ==========================================
+                    -- EL KNOCK CHECK (Filtro de estado de Da Hood)
+                    -- ==========================================
                     local estaNoqueado = false
                     local bodyEffects = model:FindFirstChild("BodyEffects")
                     
+                    -- Buscamos el BoolValue "K.O" dentro de la carpeta BodyEffects
                     if bodyEffects and bodyEffects:FindFirstChild("K.O") then
                         estaNoqueado = bodyEffects["K.O"].Value
                     end
                     
+                    -- Solo disparamos el combo si el jugador NO está en el suelo
                     if not estaNoqueado then
                         DispararComboRapido()
                     end
+                    -- ==========================================
                     
                 end
             end
