@@ -73,6 +73,7 @@ local function DispararComboRapido()
         VirtualInputManager:SendKeyEvent(true, tecla, false, game)
         VirtualInputManager:SendKeyEvent(false, tecla, false, game)
         
+        -- Retraso interno entre armas para evitar colapso del servidor
         task.wait() 
         
         if mouse1click then
@@ -82,38 +83,34 @@ local function DispararComboRapido()
             VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
         end
         
+        -- Retraso interno tras el clic
         task.wait()
     end
 
+    -- RETRASO DE CICLO AUMENTADO (Simula el retraso inicial de repetición de Windows/AHK)
     task.wait(0.5)
     firingCombo = false
 end
 
--- ==========================================
--- OPTIMIZACIÓN: Caché de Enemigos (Rendimiento sin Lag)
--- ==========================================
-local rayParams = RaycastParams.new()
-rayParams.FilterType = Enum.RaycastFilterType.Include
-rayParams.IgnoreWater = true
-
-task.spawn(function()
-    while task.wait(0.5) do 
-        local nuevosEnemigos = {}
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character then
-                table.insert(nuevosEnemigos, player.Character)
-            end
-        end
-        rayParams.FilterDescendantsInstances = nuevosEnemigos
-    end
-end)
--- ==========================================
-
 RunService.RenderStepped:Connect(function()
     if holdingTriggerButton and getgenv().XenoTriggerBot and LocalPlayer.Character then
         
-        -- Volvemos a tu método original de proyección de cámara
+        local enemigos = {}
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                table.insert(enemigos, player.Character)
+            end
+        end
+        
+        local rayParams = RaycastParams.new()
+        rayParams.FilterType = Enum.RaycastFilterType.Include
+        rayParams.FilterDescendantsInstances = enemigos
+        rayParams.IgnoreWater = true
+        
+        -- Obtenemos la posición exacta del ratón en la pantalla en lugar del centro
         local mousePos = UserInputService:GetMouseLocation()
+        
+        -- Disparamos el rayo desde esa posición específica del ratón
         local unitRay = Camera:ViewportPointToRay(mousePos.X, mousePos.Y)
         
         local rayResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, rayParams)
@@ -132,10 +129,12 @@ RunService.RenderStepped:Connect(function()
                     local estaNoqueado = false
                     local bodyEffects = model:FindFirstChild("BodyEffects")
                     
+                    -- Buscamos el BoolValue "K.O" dentro de la carpeta BodyEffects
                     if bodyEffects and bodyEffects:FindFirstChild("K.O") then
                         estaNoqueado = bodyEffects["K.O"].Value
                     end
                     
+                    -- Solo disparamos el combo si el jugador NO está en el suelo
                     if not estaNoqueado then
                         DispararComboRapido()
                     end
