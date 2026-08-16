@@ -71,7 +71,7 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
 end)
 
 -- ==========================================
--- SISTEMA DE DISPARO (Con tu pausa de 0.5s)
+-- SISTEMA DE DISPARO
 -- ==========================================
 local function DispararComboRapido()
     if firingCombo then return end
@@ -95,30 +95,29 @@ local function DispararComboRapido()
         task.wait()
     end
 
-    -- PAUSA DE CICLO AUMENTADO (Aquí está tu espera de ráfagas)
     task.wait(0.5)
     firingCombo = false
 end
 
 -- ==========================================
--- OPTIMIZACIÓN DEL WALLBANG (Cero Lag)
+-- OPTIMIZACIÓN DEL WALLBANG (Cero Lag Absoluto)
 -- ==========================================
 local rayParams = RaycastParams.new()
-rayParams.FilterType = Enum.RaycastFilterType.Include -- Volvemos a Include para ignorar paredes
+rayParams.FilterType = Enum.RaycastFilterType.Include -- Atraviesa paredes
 rayParams.IgnoreWater = true
 
-local enemigosActivos = {}
-
--- Actualizamos la lista de enemigos en segundo plano cada 0.5s en lugar de 60 veces por segundo
+-- ¡AQUÍ ESTÁ LA MAGIA! Actualizamos la lista Y el láser en segundo plano
 task.spawn(function()
     while task.wait(0.5) do
         local tempLista = {}
         for _, player in ipairs(Players:GetPlayers()) do
+            -- Filtramos para que solo meta a los enemigos (excluye tu propio cuerpo automáticamente)
             if player ~= LocalPlayer and player.Character then
                 table.insert(tempLista, player.Character)
             end
         end
-        enemigosActivos = tempLista
+        -- Asignamos la lista al rayo SOLO 2 veces por segundo, no 60 veces.
+        rayParams.FilterDescendantsInstances = tempLista
     end
 end)
 
@@ -126,14 +125,12 @@ end)
 -- MOTOR PRINCIPAL
 -- ==========================================
 RunService.RenderStepped:Connect(function()
+    -- El motor ahora está libre de carga. Solo lanza el láser y listo.
     if holdingTriggerButton and getgenv().XenoTriggerBot and LocalPlayer.Character then
-        
-        -- Asignamos la lista optimizada al láser
-        rayParams.FilterDescendantsInstances = enemigosActivos
         
         local mousePos = UserInputService:GetMouseLocation()
         
-        -- Corrección de píxeles perfectos
+        -- Corrección de píxeles para que la mira sea 100% precisa
         local guiInset, _ = GuiService:GetGuiInset()
         local unitRay = Camera:ViewportPointToRay(mousePos.X, mousePos.Y - guiInset.Y)
         
@@ -145,11 +142,10 @@ RunService.RenderStepped:Connect(function()
             if model and model:FindFirstChild("Humanoid") and model.Humanoid.Health > 0 then
                 local targetPlayer = Players:GetPlayerFromCharacter(model)
                 
-                -- Verificamos que sea un enemigo válido y no nosotros mismos
                 if targetPlayer and targetPlayer ~= LocalPlayer then
                     
                     -- ==========================================
-                    -- EL KNOCK CHECK (Ignora a los caídos)
+                    -- EL KNOCK CHECK
                     -- ==========================================
                     local estaNoqueado = false
                     local bodyEffects = model:FindFirstChild("BodyEffects")
