@@ -5,6 +5,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local GuiService = game:GetService("GuiService")
 local CoreGui = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer
@@ -13,6 +14,9 @@ local Camera = workspace.CurrentCamera
 local holdingTriggerButton = false
 local firingCombo = false
 
+-- ==========================================
+-- INTERFAZ GRÁFICA (OCULTA EN COREGUI)
+-- ==========================================
 local hiddenUI = (gethui and gethui()) or CoreGui
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "XenoGUI"
@@ -45,6 +49,9 @@ hideLabel.Font = Enum.Font.SourceSans
 hideLabel.TextSize = 14
 hideLabel.Parent = frame
 
+-- ==========================================
+-- CONTROLES
+-- ==========================================
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if input.KeyCode == Enum.KeyCode.Insert then
         screenGui.Enabled = not screenGui.Enabled
@@ -63,6 +70,9 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     end
 end)
 
+-- ==========================================
+-- SISTEMA DE DISPARO (Con tu pausa de 0.5s)
+-- ==========================================
 local function DispararComboRapido()
     if firingCombo then return end
     firingCombo = true
@@ -73,7 +83,6 @@ local function DispararComboRapido()
         VirtualInputManager:SendKeyEvent(true, tecla, false, game)
         VirtualInputManager:SendKeyEvent(false, tecla, false, game)
         
-        -- Retraso interno entre armas para evitar colapso del servidor
         task.wait() 
         
         if mouse1click then
@@ -83,35 +92,50 @@ local function DispararComboRapido()
             VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
         end
         
-        -- Retraso interno tras el clic
         task.wait()
     end
 
-    -- RETRASO DE CICLO AUMENTADO (Simula el retraso inicial de repetición de Windows/AHK)
+    -- PAUSA DE CICLO AUMENTADO (Aquí está tu espera de ráfagas)
     task.wait(0.5)
     firingCombo = false
 end
 
+-- ==========================================
+-- OPTIMIZACIÓN DEL WALLBANG (Cero Lag)
+-- ==========================================
+local rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Include -- Volvemos a Include para ignorar paredes
+rayParams.IgnoreWater = true
+
+local enemigosActivos = {}
+
+-- Actualizamos la lista de enemigos en segundo plano cada 0.5s en lugar de 60 veces por segundo
+task.spawn(function()
+    while task.wait(0.5) do
+        local tempLista = {}
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                table.insert(tempLista, player.Character)
+            end
+        end
+        enemigosActivos = tempLista
+    end
+end)
+
+-- ==========================================
+-- MOTOR PRINCIPAL
+-- ==========================================
 RunService.RenderStepped:Connect(function()
     if holdingTriggerButton and getgenv().XenoTriggerBot and LocalPlayer.Character then
         
-        local enemigos = {}
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character then
-                table.insert(enemigos, player.Character)
-            end
-        end
+        -- Asignamos la lista optimizada al láser
+        rayParams.FilterDescendantsInstances = enemigosActivos
         
-        local rayParams = RaycastParams.new()
-        rayParams.FilterType = Enum.RaycastFilterType.Include
-        rayParams.FilterDescendantsInstances = enemigos
-        rayParams.IgnoreWater = true
-        
-        -- Obtenemos la posición exacta del ratón en la pantalla en lugar del centro
         local mousePos = UserInputService:GetMouseLocation()
         
-        -- Disparamos el rayo desde esa posición específica del ratón
-        local unitRay = Camera:ViewportPointToRay(mousePos.X, mousePos.Y)
+        -- Corrección de píxeles perfectos
+        local guiInset, _ = GuiService:GetGuiInset()
+        local unitRay = Camera:ViewportPointToRay(mousePos.X, mousePos.Y - guiInset.Y)
         
         local rayResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, rayParams)
         
@@ -121,20 +145,19 @@ RunService.RenderStepped:Connect(function()
             if model and model:FindFirstChild("Humanoid") and model.Humanoid.Health > 0 then
                 local targetPlayer = Players:GetPlayerFromCharacter(model)
                 
+                -- Verificamos que sea un enemigo válido y no nosotros mismos
                 if targetPlayer and targetPlayer ~= LocalPlayer then
                     
                     -- ==========================================
-                    -- EL KNOCK CHECK (Filtro de estado de Da Hood)
+                    -- EL KNOCK CHECK (Ignora a los caídos)
                     -- ==========================================
                     local estaNoqueado = false
                     local bodyEffects = model:FindFirstChild("BodyEffects")
                     
-                    -- Buscamos el BoolValue "K.O" dentro de la carpeta BodyEffects
                     if bodyEffects and bodyEffects:FindFirstChild("K.O") then
                         estaNoqueado = bodyEffects["K.O"].Value
                     end
                     
-                    -- Solo disparamos el combo si el jugador NO está en el suelo
                     if not estaNoqueado then
                         DispararComboRapido()
                     end
