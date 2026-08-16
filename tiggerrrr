@@ -5,7 +5,6 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
-local GuiService = game:GetService("GuiService")
 local CoreGui = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer
@@ -103,20 +102,18 @@ end
 -- OPTIMIZACIÓN DEL WALLBANG (Cero Lag Absoluto)
 -- ==========================================
 local rayParams = RaycastParams.new()
-rayParams.FilterType = Enum.RaycastFilterType.Include -- Atraviesa paredes
+rayParams.FilterType = Enum.RaycastFilterType.Include 
 rayParams.IgnoreWater = true
 
--- ¡AQUÍ ESTÁ LA MAGIA! Actualizamos la lista Y el láser en segundo plano
+-- Actualizamos la lista de colisiones en segundo plano
 task.spawn(function()
     while task.wait(0.5) do
         local tempLista = {}
         for _, player in ipairs(Players:GetPlayers()) do
-            -- Filtramos para que solo meta a los enemigos (excluye tu propio cuerpo automáticamente)
             if player ~= LocalPlayer and player.Character then
                 table.insert(tempLista, player.Character)
             end
         end
-        -- Asignamos la lista al rayo SOLO 2 veces por segundo, no 60 veces.
         rayParams.FilterDescendantsInstances = tempLista
     end
 end)
@@ -125,14 +122,12 @@ end)
 -- MOTOR PRINCIPAL
 -- ==========================================
 RunService.RenderStepped:Connect(function()
-    -- El motor ahora está libre de carga. Solo lanza el láser y listo.
     if holdingTriggerButton and getgenv().XenoTriggerBot and LocalPlayer.Character then
         
         local mousePos = UserInputService:GetMouseLocation()
         
-        -- Corrección de píxeles para que la mira sea 100% precisa
-        local guiInset, _ = GuiService:GetGuiInset()
-        local unitRay = Camera:ViewportPointToRay(mousePos.X, mousePos.Y - guiInset.Y)
+        -- ¡REVERTIDO! Disparamos exactamente desde donde el juego detecta tu ratón, sin matemáticas extra
+        local unitRay = Camera:ViewportPointToRay(mousePos.X, mousePos.Y)
         
         local rayResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, rayParams)
         
