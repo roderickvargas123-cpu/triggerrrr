@@ -94,7 +94,7 @@ local function DispararComboRapido()
         task.wait()
     end
 
-    task.wait(0.5)
+    task.wait(1.2)
     firingCombo = false
 end
 
