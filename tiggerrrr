@@ -1,3 +1,6 @@
+-- ==========================================
+-- XENO HUB: HYBRID COMBO TRIGGERBOT + SMOOTH CAMLOCK (Double Tap Update)
+-- ==========================================
 if getgenv().XenoTriggerBot then return end
 getgenv().XenoTriggerBot = true
 
@@ -13,8 +16,41 @@ local Camera = workspace.CurrentCamera
 local holdingTriggerButton = false
 local firingCombo = false
 
+-- Variables para el Doble Toque (NUEVO)
+local lastPPressTime = 0
+local camlockActivo = false
+
 -- ==========================================
--- INTERFAZ GRÁFICA (OCULTA EN COREGUI)
+-- CONFIGURACIÓN DEL CAMLOCK
+-- ==========================================
+local Config = {
+    FovRadio = 30,             
+    Suavizado = 0.085,         
+    PrediccionOffset = 0.04,  
+    TemblorHumano = 0.5,       
+    
+    TiempoEnganche = 0.25,     
+    ZonaMuerta = 5,            
+    
+    PartesDinamicas = {"UpperTorso", "LowerTorso", "Head", "RightUpperArm", "LeftUpperArm"},
+    TiempoReaccionSalto = 0.15, 
+    SensibilidadReaccion = 12, 
+    FlickVelocidad = 0.25      
+}
+
+-- Variables del Camlock
+local objetivoActual = nil
+local ultimoObjetivo = nil
+local tiempoInicioLock = 0
+local offsetAleatorioTorso = Vector3.new(0, 0, 0)
+local parteActual = "UpperTorso"
+local tiempoUltimoCambioParte = 0
+local posicionMemoria = nil
+local retrasoMentalHasta = 0
+local ultimaVelocidad = Vector3.new(0, 0, 0)
+
+-- ==========================================
+-- INTERFAZ GRÁFICA
 -- ==========================================
 local hiddenUI = (gethui and gethui()) or CoreGui
 local screenGui = Instance.new("ScreenGui")
@@ -32,7 +68,7 @@ frame.Parent = screenGui
 local textLabel = Instance.new("TextLabel")
 textLabel.Size = UDim2.new(1, 0, 0, 40)
 textLabel.BackgroundTransparency = 1
-textLabel.Text = "[ XENO ACTIVADO: Hold 'P' ]"
+textLabel.Text = "[ XENO HYBRID: Hold 'P' ]"
 textLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
 textLabel.Font = Enum.Font.Code
 textLabel.TextSize = 13
@@ -42,14 +78,14 @@ local hideLabel = Instance.new("TextLabel")
 hideLabel.Size = UDim2.new(1, 0, 0, 20)
 hideLabel.Position = UDim2.new(0, 0, 0, 40)
 hideLabel.BackgroundTransparency = 1
-hideLabel.Text = "[INSERT] para Ocultar Menú"
+hideLabel.Text = "[INSERT] para Ocultar"
 hideLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 hideLabel.Font = Enum.Font.SourceSans
 hideLabel.TextSize = 14
 hideLabel.Parent = frame
 
 -- ==========================================
--- CONTROLES
+-- CONTROLES CON DETECCIÓN DE DOBLE TOQUE
 -- ==========================================
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if input.KeyCode == Enum.KeyCode.Insert then
@@ -57,6 +93,18 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 
     if not gameProcessed and input.KeyCode == Enum.KeyCode.P then
+        local tiempoActual = tick()
+        
+        -- Lógica de Doble Pulsación (Si presionaste P hace menos de 0.35 segundos)
+        if tiempoActual - lastPPressTime < 0.35 then
+            camlockActivo = true
+            textLabel.Text = "[ CAMLOCK ACTIVADO ]"
+        else
+            camlockActivo = false
+            textLabel.Text = "[ TRIGGER NORMAL ]"
+        end
+        
+        lastPPressTime = tiempoActual
         holdingTriggerButton = true
         frame.BorderColor3 = Color3.fromRGB(0, 255, 0)
     end
@@ -66,11 +114,12 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     if input.KeyCode == Enum.KeyCode.P then
         holdingTriggerButton = false
         frame.BorderColor3 = Color3.fromRGB(255, 0, 0)
+        textLabel.Text = "[ XENO HYBRID: Hold 'P' ]"
     end
 end)
 
 -- ==========================================
--- SISTEMA DE DISPARO
+-- SISTEMA DE DISPARO (LA MACRO)
 -- ==========================================
 local function DispararComboRapido()
     if firingCombo then return end
@@ -81,16 +130,13 @@ local function DispararComboRapido()
     for _, tecla in ipairs(secuencia) do
         VirtualInputManager:SendKeyEvent(true, tecla, false, game)
         VirtualInputManager:SendKeyEvent(false, tecla, false, game)
-        
         task.wait() 
-        
         if mouse1click then
             mouse1click()
         else
             VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
             VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
         end
-        
         task.wait()
     end
 
@@ -99,13 +145,61 @@ local function DispararComboRapido()
 end
 
 -- ==========================================
--- OPTIMIZACIÓN DEL WALLBANG (Cero Lag Absoluto)
+-- FUNCIONES AUXILIARES Y VALIDACIÓN
 -- ==========================================
+local function EsObjetivoValido(personaje)
+    if not personaje or not personaje:FindFirstChild("Humanoid") then return false end
+    if personaje.Humanoid.Health <= 0 then return false end
+    
+    local bodyEffects = personaje:FindFirstChild("BodyEffects")
+    if bodyEffects and bodyEffects:FindFirstChild("K.O") and bodyEffects["K.O"].Value == true then
+        return false
+    end
+    
+    return true
+end
+
+local function EsApuntadoOPrimeraPersona()
+    if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+        return true
+    end
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head") then
+        local distancia = (Camera.CFrame.Position - LocalPlayer.Character.Head.Position).Magnitude
+        if distancia < 1.5 then 
+            return true 
+        end
+    end
+    return false
+end
+
+local function ObtenerObjetivoEnFOV()
+    local enemigoMasCercano = nil
+    local distanciaMinima = Config.FovRadio
+    local centroPantalla = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+    for _, jugador in ipairs(Players:GetPlayers()) do
+        if jugador ~= LocalPlayer and jugador.Character and jugador.Character:FindFirstChild("UpperTorso") then
+            if EsObjetivoValido(jugador.Character) then
+                local parte = jugador.Character["UpperTorso"]
+                local posicionPantalla, enPantalla = Camera:WorldToViewportPoint(parte.Position)
+                
+                if enPantalla then
+                    local distanciaAlCentro = (Vector2.new(posicionPantalla.X, posicionPantalla.Y) - centroPantalla).Magnitude
+                    if distanciaAlCentro < distanciaMinima then
+                        distanciaMinima = distanciaAlCentro
+                        enemigoMasCercano = jugador.Character
+                    end
+                end
+            end
+        end
+    end
+    return enemigoMasCercano
+end
+
 local rayParams = RaycastParams.new()
 rayParams.FilterType = Enum.RaycastFilterType.Include 
 rayParams.IgnoreWater = true
 
--- Actualizamos la lista de colisiones en segundo plano
 task.spawn(function()
     while task.wait(0.5) do
         local tempLista = {}
@@ -119,43 +213,109 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- MOTOR PRINCIPAL
+-- MOTOR HÍBRIDO PRINCIPAL
 -- ==========================================
 RunService.RenderStepped:Connect(function()
     if holdingTriggerButton and getgenv().XenoTriggerBot and LocalPlayer.Character then
         
-        local mousePos = UserInputService:GetMouseLocation()
-        
-        -- ¡REVERTIDO! Disparamos exactamente desde donde el juego detecta tu ratón, sin matemáticas extra
-        local unitRay = Camera:ViewportPointToRay(mousePos.X, mousePos.Y)
-        
-        local rayResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, rayParams)
-        
-        if rayResult and rayResult.Instance then
-            local model = rayResult.Instance:FindFirstAncestorOfClass("Model")
-            
-            if model and model:FindFirstChild("Humanoid") and model.Humanoid.Health > 0 then
-                local targetPlayer = Players:GetPlayerFromCharacter(model)
-                
-                if targetPlayer and targetPlayer ~= LocalPlayer then
-                    
-                    -- ==========================================
-                    -- EL KNOCK CHECK
-                    -- ==========================================
-                    local estaNoqueado = false
-                    local bodyEffects = model:FindFirstChild("BodyEffects")
-                    
-                    if bodyEffects and bodyEffects:FindFirstChild("K.O") then
-                        estaNoqueado = bodyEffects["K.O"].Value
-                    end
-                    
-                    if not estaNoqueado then
-                        DispararComboRapido()
-                    end
-                    -- ==========================================
-                    
+        local modoApuntado = EsApuntadoOPrimeraPersona()
+
+        -- El Camlock solo se activa SI estás apuntando Y SI presionaste P dos veces
+        if modoApuntado and camlockActivo then
+            -- =========================================================
+            -- MODO 1: CAMLOCK SMOOTH + TRIGGERBOT (Doble Toque)
+            -- =========================================================
+            if objetivoActual and not EsObjetivoValido(objetivoActual) then
+                objetivoActual = nil
+                ultimoObjetivo = nil
+                posicionMemoria = nil
+            end
+
+            if not objetivoActual then
+                objetivoActual = ObtenerObjetivoEnFOV()
+                if objetivoActual then
+                    tiempoInicioLock = tick()
+                    posicionMemoria = objetivoActual.PrimaryPart.Position
                 end
             end
+            
+            if objetivoActual then
+                if tick() - tiempoUltimoCambioParte > (math.random(8, 15) / 10) then
+                    parteActual = Config.PartesDinamicas[math.random(1, #Config.PartesDinamicas)]
+                    tiempoUltimoCambioParte = tick()
+                    offsetAleatorioTorso = Vector3.new((math.random()-0.5)*0.5, (math.random()-0.5)*0.5, (math.random()-0.5)*0.5)
+                end
+                
+                local parteObjetivoFisica = objetivoActual:FindFirstChild(parteActual) or objetivoActual:FindFirstChild("UpperTorso")
+                
+                local velocidadReal = parteObjetivoFisica.AssemblyLinearVelocity
+                local cambioDeVelocidad = (velocidadReal - ultimaVelocidad).Magnitude
+                
+                if cambioDeVelocidad > Config.SensibilidadReaccion and tick() > retrasoMentalHasta + 0.5 then
+                    retrasoMentalHasta = tick() + Config.TiempoReaccionSalto
+                end
+                ultimaVelocidad = velocidadReal
+                
+                local tiempo = tick() * 4
+                local posicionFuturaIdeal = parteObjetivoFisica.Position 
+                    + offsetAleatorioTorso 
+                    + (velocidadReal * Config.PrediccionOffset) 
+                    + Vector3.new(math.noise(tiempo,0,0)*Config.TemblorHumano, math.noise(0,tiempo,0)*Config.TemblorHumano, math.noise(0,0,tiempo)*Config.TemblorHumano)
+                    
+                if not posicionMemoria then posicionMemoria = posicionFuturaIdeal end
+                
+                if tick() < retrasoMentalHasta then
+                    posicionMemoria = posicionMemoria:Lerp(posicionFuturaIdeal, 0.02)
+                else
+                    posicionMemoria = posicionMemoria:Lerp(posicionFuturaIdeal, Config.FlickVelocidad)
+                end
+
+                local tiempoTranscurrido = tick() - tiempoInicioLock
+                local progreso = math.clamp(tiempoTranscurrido / Config.TiempoEnganche, 0.05, 1)
+                local suavizadoFinal = Config.Suavizado * (progreso * progreso * (3 - 2 * progreso))
+                
+                local centroPantalla = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+                local pos2D, enPantalla = Camera:WorldToViewportPoint(parteObjetivoFisica.Position)
+                if enPantalla and (Vector2.new(pos2D.X, pos2D.Y) - centroPantalla).Magnitude < Config.ZonaMuerta then
+                    suavizadoFinal = suavizadoFinal * 0.5
+                end
+                
+                Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, posicionMemoria), suavizadoFinal)
+                
+                local unitRay = Camera:ViewportPointToRay(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+                local rayResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, rayParams)
+                
+                if rayResult and rayResult.Instance and rayResult.Instance:IsDescendantOf(objetivoActual) then
+                    DispararComboRapido()
+                end
+            end
+
+        else
+            -- =========================================================
+            -- MODO 2: SOLO TRIGGERBOT (Un solo Toque o Tercera Persona)
+            -- =========================================================
+            objetivoActual = nil
+            posicionMemoria = nil
+            ultimoObjetivo = nil
+            
+            local mousePos = UserInputService:GetMouseLocation()
+            local unitRay = Camera:ViewportPointToRay(mousePos.X, mousePos.Y)
+            local rayResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, rayParams)
+            
+            if rayResult and rayResult.Instance then
+                local model = rayResult.Instance:FindFirstAncestorOfClass("Model")
+                
+                if model and EsObjetivoValido(model) then
+                    local targetPlayer = Players:GetPlayerFromCharacter(model)
+                    if targetPlayer and targetPlayer ~= LocalPlayer then
+                        DispararComboRapido()
+                    end
+                end
+            end
+            
         end
+    else
+        objetivoActual = nil
+        posicionMemoria = nil
     end
 end)
